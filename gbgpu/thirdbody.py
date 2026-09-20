@@ -570,8 +570,14 @@ class GBGPUThirdBody(InheritGBGPU):
         assert isinstance(data, list) and len(data) == 2 and isinstance(data[0], self.xp.ndarray) and data[0].ndim == 1 and isinstance(data[1], self.xp.ndarray) and data[1].ndim == 1 and data[0].dtype == self.xp.complex128 and data[1].dtype == self.xp.complex128
         
         assert isinstance(psd, list) and len(psd) == 2 and isinstance(psd[0], self.xp.ndarray) and psd[0].ndim == 1 and isinstance(psd[1], self.xp.ndarray) and psd[1].ndim == 1 and psd[0].dtype == self.xp.float64 and psd[1].dtype == self.xp.float64
-
-        assert N is not None and (isinstance(N, int) or (isinstance(N, self.xp.ndarray) and xp.all(N == N[0])))
+        # breakpoint()
+        if isinstance(N, int) == False:
+            if self.xp.any(N != N[0]) and self.xp.any(N > N[0]):
+                    raise ValueError
+            elif self.xp.any(N != N[0]) and self.xp.any(N < N[0]):
+                    N.fill(N[0])
+        # breakpoint()
+        assert N is not None and (isinstance(N, int) or (isinstance(N, self.xp.ndarray) and self.xp.all(N == N[0])))
 
         if isinstance(N, self.xp.ndarray) and xp.all(N == N[0]):
             N = N[0].item()

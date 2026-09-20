@@ -43,7 +43,7 @@ from lisatools.diagnostic import (
 )
 from eryn.prior import uniform_dist
 from eryn.utils import TransformContainer
-from eryn.state import State, ParaState, BranchSupplimental
+from eryn.state import State, ParaState, BranchSupplemental
 from eryn.backends import HDFBackend
 
 from lisatools.sampling.stopping import SNRStopping, SearchConvergeStopping
@@ -94,7 +94,7 @@ class BaseTemplateSetup(TemplateSetup):
         }
         
         # initialize full prior setup
-        priors = {"gb": ProbDistContainer(priors_in, use_cupy=use_gpu)}
+        priors = {"gb": ProbDistContainer(priors_in, use_cupy=use_gpu, return_gpu = True)}
 
         # transform function from sampling basis to waveform basis
         transform_fn_in = {
@@ -215,7 +215,7 @@ class ThirdBodyTemplateSetup(TemplateSetup):
         }
 
         # initialize full prior setup
-        priors = {"gb": ProbDistContainer(priors_in, use_cupy=use_gpu)}
+        priors = {"gb": ProbDistContainer(priors_in, use_cupy=use_gpu, return_gpu = True)}
 
         # transform function from sampling basis to waveform basis
         transform_fn_in = {
@@ -275,7 +275,7 @@ class LogLikeFn:
             raise ValueError("Branch supps needed.")
 
         data_index = branch_supps["gb"]["data_inds"]
-
+        # breakpoint()
         x_in = self.transform_fn["gb"].both_transforms(x, xp=xp, copy=True)
 
         N = self.N_vals[data_index]
@@ -286,7 +286,7 @@ class LogLikeFn:
         
         if "N" in self.waveform_kwargs:
             self.waveform_kwargs.pop("N")
-
+        # breakpoint()
         ll = self.gb.get_ll(x_in.get(), self.data, self.psd, data_index=data_index, data_length=self.data_length, noise_index=data_index, start_freq_ind=self.start_freq, N=N, **self.waveform_kwargs)
 
         return ll

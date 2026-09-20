@@ -1057,6 +1057,7 @@ __launch_bounds__(FFT::max_threads_per_block) __global__ void get_ll(
 
         if (tid == 0)
         {
+            // printf("%e %e %e %e\n", d_h_temp[0].real(), d_h_temp[0].imag(), h_h_temp[0].real(), h_h_temp[0].imag());
             d_h[bin_i] = 4.0 * df * d_h_temp[0];
             h_h[bin_i] = 4.0 * df * h_h_temp[0];
         }
@@ -1117,6 +1118,7 @@ void get_ll_wrap(InputInfo inputs)
     // std::cout << (int)FFT::block_dim.x << " " << inputs.N << std::endl;
     // std::cout << (int) FFT::block_dim.x << std::endl;
     //  Invokes kernel with FFT::block_dim threads in CUDA block
+    // printf("CHECK2\n");
     get_ll<FFT><<<inputs.num_bin_all, FFT::block_dim, shared_memory_size_mine>>>(
         inputs.d_h,
         inputs.h_h,
@@ -1236,6 +1238,7 @@ void ThirdSharedMemoryLikeComp(
     inputs.device = device;
     inputs.do_synchronize = do_synchronize;
 
+    // printf("CHECK\n");
     switch (N)
     {
     // All SM supported by cuFFTDx

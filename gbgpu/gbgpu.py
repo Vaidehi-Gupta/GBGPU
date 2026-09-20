@@ -158,7 +158,7 @@ class GBGPU(object):
                 orbit given in radians.
             psi (double or 1D double np.ndarray): Polarization angle of the Galactic
                 binary orbit in radians.
-            lam (double or 1D double np.ndarray): Ecliptic longitutude of the source
+            lam (double or 1D double np.ndarray): Ecliptic longitude of the source
                 given in radians.
             beta (double or 1D double np.ndarray): Ecliptic Latitude of the source
                 given in radians. This is converted to the spherical polar angle.
@@ -199,7 +199,6 @@ class GBGPU(object):
         psi = np.atleast_1d(psi)
         lam = np.atleast_1d(lam)
         beta = np.atleast_1d(beta)
-
         # if circular base
         if len(args) == 0:
             add_args = ()
@@ -672,11 +671,10 @@ class GBGPU(object):
         if self.gpus is not None:
             # set first index gpu device to control main operations
             self.xp.cuda.runtime.setDevice(self.gpus[0])
-
         # get number of observation points and adjust T accordingly
         N_obs = int(T / dt)
         T = N_obs * dt
-
+        # breakpoint()
         self.num_bin = num_bin = params.shape[0]
 
         if self.d_d is None:
@@ -689,10 +687,30 @@ class GBGPU(object):
             N = get_N(self.xp.asarray(params[:, 0]), self.xp.asarray(params[:, 1]), T, oversample=oversample)
 
         else:
+            # breakpoint()
             if isinstance(N, self.xp.ndarray):
                 assert params.shape[0] == N.shape[0]
-            elif isinstance(N, np.int64) or isinstance(N, np.int) or isinstance(N, np.int32):
+            elif isinstance(N, np.ndarray):
+                N = self.xp.asarray(N)
+            elif isinstance(N, int):
                 N = self.xp.full(params.shape[0], N)
+            else:
+                print(f"Unknown Type of N {type(N)}")
+            
+            # else:
+                # print(type(N))
+                # raise Exception("Unknown Type")
+            
+            # elif isinstance(N, np.int64) or isinstance(N, int) or isinstance(N, np.int32):
+            # elif np.issubdtype(N, np.integer):
+            # elif isinstance(N, np.int64) or isinstance(N, np.int32):
+            # elif isinstance(N, np.ndarray):
+                # N = self.xp.full(params.shape[0], N)
+            # elif isinstance(N, int):
+                # N = self.xp.full(params.shape[0], N)
+            # else:
+                # print(type(N), len(N))
+                # raise Exception(f"Unknown Type of N {type(N)}")
 
         df = self.df = 1. / T
 
@@ -939,6 +957,7 @@ class GBGPU(object):
 
                     gpu = self.xp.cuda.runtime.getDevice()
                     do_synchronize = True
+                    # breakpoint()
                     SharedMemoryLikeComp_wrap(
                         d_h_temp,
                         h_h_temp,
@@ -950,7 +969,6 @@ class GBGPU(object):
                         noise_index_N,
                         amp, f0, fdot, fddot, phi0, iota, psi, lam, theta, T, dt, N_here, num_bin, start_freq_ind, data_length, gpu, do_synchronize
                     )
-
                 else:
                     # add kwargs
                     kwargs["T"] = T
@@ -959,9 +977,29 @@ class GBGPU(object):
 
                     # produce TDI templates
                     self.run_wave(*params_N.T, **kwargs)
-
+                    # breakpoint()
                     # shift start inds based on the starting index of the data stream
                     start_inds_temp = (self.start_inds - start_freq_ind).astype(self.xp.int32)
+                    # A_pkl = self.A_out
+                    # E_pkl = self.E_out
+                    # p_pkl = params_N
+                    # ka_pkl = kwargs
+                    # start = self.start_inds
+                    # psd_pkl = psd
+                    # data_chn_pkl = data
+                    # d_h_pkl = d_h_temp
+                    # h_h_pkl = h_h_temp
+                    # N_pkl = N_here
+                    # data_idx_pkl = data_index_N
+                    # noise_idx_pkl = noise_index_N
+                    # data_len_pkl = data_length
+                    # data_pkl = {"A_out": A_pkl, "E_out": E_pkl, "kwargs": ka_pkl, "params": p_pkl, "start_inds": start,
+                    # "psd": psd_pkl, "data": data_chn_pkl, "d_h_temp": d_h_pkl, "h_h_temp": h_h_pkl,
+                    # "N_here": N_pkl, "data_index_N": data_idx_pkl, "noise_idx_pkl": noise_idx_pkl,
+                    # "data_length": data_len_pkl}
+                    # import pickle
+                    # with open("/expanse/lustre/projects/umn131/vgupta1/Stage_2/ParameterEstimation/file_clean_post.pkl", "wb") as file:
+                    #     pickle.dump(data_pkl, file)
 
                     # get ll through C/CUDA
                     self.get_ll_func(
@@ -984,7 +1022,7 @@ class GBGPU(object):
 
                 d_h[N_groups == nnn] = d_h_temp
                 h_h[N_groups == nnn] = h_h_temp
-
+        
         if phase_marginalize:
             self.non_marg_d_h = d_h.copy()
             try:
@@ -997,7 +1035,7 @@ class GBGPU(object):
         # store these likelihood terms for later if needed
         self.h_h = h_h
         self.d_h = d_h
-
+        # breakpoint()
         # compute Likelihood
         like_out = -1.0 / 2.0 * (self.d_d + h_h - 2 * d_h).real
 
@@ -1165,10 +1203,20 @@ class GBGPU(object):
             N = get_N(self.xp.asarray(params[:, 0]), self.xp.asarray(params[:, 1]), T, oversample=oversample)
 
         else:
+            # breakpoint()
             if isinstance(N, self.xp.ndarray):
                 assert params.shape[0] == N.shape[0]
-            elif isinstance(N, np.int64) or isinstance(N, np.int) or isinstance(N, np.int32):
+            # elif isinstance(N, np.int64) or isinstance(N, int) or isinstance(N, np.int32):
+            # elif np.issubdtype(N, np.integer):
+            # elif isinstance(N, np.int64) or isinstance(N, np.int32):
+            # elif N%2 == 0 or N%2 == 1:
+            elif isinstance(N, np.ndarray):
+                N = self.xp.asarray(N)
+            elif isinstance(N, int):
                 N = self.xp.full(params.shape[0], N)
+            else:
+                print(f"Unknown Type of N {type(N)}")
+
 
         unique_N, inverse = self.xp.unique(self.xp.asarray(N), return_inverse=True)
         N_groups = self.xp.arange(len(unique_N))[inverse]
@@ -1790,7 +1838,42 @@ class GBGPU(object):
         except AttributeError:
             return ll_diff
 
-    def inject_signal(self, *args, fmax=None, T=4.0 * YEAR, dt=10.0, **kwargs):
+    # def inject_multiple_signals(self, *args, fmax=None, num_waves=1, T=4.0 * YEAR, dt=10.0, **kwargs):
+    #     # get binspacing
+    #     if fmax is None:
+    #         fmax = 1 / (2 * dt)
+
+    #     # adjust inputs for run wave
+    #     N_obs = int(T / dt)
+    #     T = N_obs * dt
+    #     kwargs["T"] = T
+    #     kwargs["dt"] = dt
+    #     self.df = df = 1 / T
+    #     # create frequencies
+    #     f = np.arange(0.0, fmax + df, df)
+    #     num = len(f)
+
+    #     self.run_wave(*args, **kwargs)
+    #     A_out = np.zeros((num_waves, num), dtype=np.complex128)
+    #     E_out = np.zeros((num_waves, num), dtype=np.complex128)
+
+    #     if self.use_gpu:
+    #         A_temp = self.A.squeeze().get()
+    #         E_temp = self.E.squeeze().get()
+
+    #     else:
+    #         A_temp = self.A.squeeze()
+    #         E_temp = self.E.squeeze()
+
+    #     i_idx = np.arange(num_waves)[:, None]
+    #     start_inds = self.start_inds.get()
+    #     col_inds = start_inds[:, None] + np.arange(self.N)[None, :]
+
+    #     A_out[i_idx, col_inds] = A_temp
+    #     E_out[i_idx, col_inds] = E_temp
+    #     return A_out, E_out
+
+    def inject_signal(self, *args, fmax=None, num_waves :int = 1, combine=False, T=4.0 * YEAR, dt=10.0, **kwargs):
         """Inject a single signal
 
         Provides the injection of a single signal into a data stream with frequencies
@@ -1824,34 +1907,48 @@ class GBGPU(object):
         kwargs["dt"] = dt
         self.df = df = 1 / T
 
+        # verify num_waves is correct
+        # assert num_waves == len(args[0])
+
         # create frequencies
         f = np.arange(0.0, fmax + df, df)
         num = len(f)
 
-        # NumPy arrays for data streams of injections
-        A_out = np.zeros(num, dtype=np.complex128)
-        E_out = np.zeros(num, dtype=np.complex128)
+        A_out = np.zeros((num_waves, num), dtype=np.complex128)
+        E_out = np.zeros((num_waves, num), dtype=np.complex128)
 
         # build the templates
         self.run_wave(*args, **kwargs)
-
-        # add each mode to the templates
-        start = self.start_inds[0]
-
+        # breakpoint()
         # if using GPU, will return to CPU
         if self.use_gpu:
-            A_temp = self.A_out.squeeze().get()
-            E_temp = self.E_out.squeeze().get()
+            A_temp = self.A.squeeze().get()
+            E_temp = self.E.squeeze().get()
 
         else:
-            A_temp = self.A_out.squeeze()
-            E_temp = self.E_out.squeeze()
+            A_temp = self.A.squeeze()
+            E_temp = self.E.squeeze()
 
-        # fill the data streams at the4 proper frqeuencies
-        A_out[start.item() : start.item() + self.N] = A_temp
-        E_out[start.item() : start.item() + self.N] = E_temp
+        # for one or more than 1 wave    
+        i_idx = np.arange(num_waves)[:, None]
+        start_inds = self.start_inds.get()
+        col_inds = start_inds[:, None] + np.arange(self.N)[None, :]
 
-        return A_out, E_out
+        # fill the data streams at the proper frqeuencies
+        A_out[i_idx, col_inds] = A_temp
+        E_out[i_idx, col_inds] = E_temp
+        if combine:
+            A_summed = np.sum(A_out, axis=0)
+            E_summed = np.sum(E_out, axis=0)
+
+        assert num_waves > 0
+
+        if num_waves == 1:
+            return A_out[0], E_out[0]
+        elif num_waves > 1 and combine == False:
+            return A_out, E_out 
+        elif num_waves > 1 and combine == True:
+            return A_summed, E_summed
 
     def _apply_parameter_transforms(self, params, parameter_transforms):
         """Apply parameter transformations to params for Information Matrix."""
@@ -1880,7 +1977,7 @@ class GBGPU(object):
         This function computes the Information matrix for a batch of Galactic binaries.
         It uses a 2nd order calculation for the derivative if ``easy_central_difference`` is ``False``:
 
-        ..math:: \\frac{dh}{d\\lambda_i} = \\frac{-h(\\lambda_i + 2\\epsilon) + h(\\lambda_i - 2\\epsilon) + 8(h(\\lambda_i + \epsilon) - h(\\lambda_i - \\epsilon))}{12\\epsilson}
+        ..math:: \\frac{dh}{d\\lambda_i} = \\frac{-h(\\lambda_i + 2\\epsilon) + h(\\lambda_i - 2\\epsilon) + 8(h(\\lambda_i + \\epsilon) - h(\\lambda_i - \\epsilon))}{12\\epsilson}
 
         Otherwise, it will just calculate the derivate with a first-order central difference.
 
@@ -1907,7 +2004,7 @@ class GBGPU(object):
                 :func:`run_wave`. We recommend using higher ``N`` in the Information Matrix
                 computation because of the numerical derivatives. Default is ``1024``.
             psd_func (object, optional): Function to compute the PSD for the A and E channels.
-                Must take on argument: the frequencies as an xp.ndarray. When ``None``,
+                Must take on argument: the frequencies as an get.ndarray. When ``None``,
                 it attemps to use the sensitivity functions from LISA Analysis Tools.
             psd_kwargs (dict, optional): Keyword arguments for the TDI noise generator. Default is ``None``.
             easy_central_difference (bool, optional): If ``True``, compute the derivatives with

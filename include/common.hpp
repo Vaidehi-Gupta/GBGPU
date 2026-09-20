@@ -53,6 +53,7 @@ namespace example
 
     inline unsigned int get_multiprocessor_count()
     {
+        // printf("I am here now");
         int device = 0;
         CUDA_CHECK_AND_EXIT(cudaGetDevice(&device));
         return get_multiprocessor_count(device);
@@ -62,18 +63,20 @@ namespace example
     inline int sm_runner(InputInfo inputs)
     {
         // Get CUDA device compute capability
+        // printf("In common");
         const auto cuda_device_arch = get_cuda_device_arch();
 
         switch (cuda_device_arch)
         {
+        // printf("I am here");
         // All SM supported by cuFFTDx
-        /// case 700: Functor<700, N>()(inputs); return 0;
+        case 700: Functor<700, N>()(inputs); return 0;
         // case 720: Functor<720, N>()(inputs); return 0;
         // case 750: Functor<750, N>()(inputs); return 0;
-        case 800:
-            Functor<800, N>()(inputs);
-            return 0;
-        // case 860: Functor<860, N>()(inputs); return 0;
+        // case 800:
+        //   Functor<800, N>()(inputs);
+        //   return 0;
+    //   case 860: Functor<860, N>()(inputs); return 0;
         default:
         {
             if (cuda_device_arch > 800)
@@ -88,3 +91,4 @@ namespace example
 } // namespace example
 
 #endif // CUFFTDX_EXAMPLE_COMMON_HPP_
+

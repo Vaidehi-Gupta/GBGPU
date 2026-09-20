@@ -3,7 +3,7 @@ import wave
 import numpy as np
 import os
 from scipy import stats
-import h5py
+import h5py 
 import time
 
 from eryn.prior import ProbDistContainer
@@ -36,7 +36,7 @@ from lisatools.diagnostic import (
 )
 from eryn.prior import uniform_dist
 from eryn.utils import TransformContainer
-from eryn.state import State, ParaState, BranchSupplimental
+from eryn.state import State, ParaState, BranchSupplemental
 from eryn.backends import HDFBackend
 
 from lisatools.sampling.stopping import SNRStopping, SearchConvergeStopping
@@ -129,6 +129,8 @@ class Guide(ABC):
             self.run_single_directory(directory)
 
     def check_run_status(self, indicator: str) -> bool:
+        # if indicator != "planets":
+        #     return False
 
         if not os.path.exists(self.status_file):
             with open(self.status_file, "w") as fp:
@@ -204,7 +206,7 @@ class Guide(ABC):
             'M3',
             'a3',
             'Phi3',
-            'iota3',
+            'iota3', 
             'e3'
         ]
         dtype = np.dtype([(key, '<f8') for key in keys])
@@ -251,7 +253,7 @@ class Guide(ABC):
     def check_if_parameters_are_within_lims(self, indicator: str, orig_id: int, m3: float, e2: float, ll_diff: float, opt_snr: float, ll_cut=0.0) -> bool:
         good = True
 
-        for key in ["m3", "e2", "opt_snr"]:    
+        for key in ["m3", "e2", "opt_snr", "ll_diff"]:    
             if not good:
                 continue
             if f"{key}_lims" in self.limits_info:
@@ -263,6 +265,7 @@ class Guide(ABC):
                         print(f"Not running id {orig_id} in model {indicator} because {key} is not inside its defined limits: {val} not in {limits}")
 
         if ll_diff > ll_cut:
+            #VEE  or orig_id < 28577371 and orig_id > 28577360
             # might be some numerical error. 
             # This is making sure it is less than zero.
             assert ll_diff < 1e-5  
@@ -288,11 +291,11 @@ class Guide(ABC):
 
         N_found_base = get_N(amp, f0, self.waveform_kwargs["T"], oversample=self.waveform_kwargs["oversample"]).item()
 
-        A2 = injection_params[-5]
+        A2 = np.exp(injection_params[-5])
         varpi  = injection_params[-4]
         e2  = injection_params[-3]
-        P2  = injection_params[-2]
-        T2  = injection_params[-1]
+        P2 = injection_params[-2]
+        T2 = injection_params[-1] * P2
 
         N_found_third = self.third_info.template_gen.special_get_N(
             amp, 
@@ -385,8 +388,8 @@ class Guide(ABC):
                 for ind, lims in lims_in:
                     tmp[:, ind] = (tmp[:, ind] - lims[0]) / (lims[1] - lims[0])
 
-                if np.any(tmp[:, 1] < 0.0):
-                    breakpoint()
+                # if np.any(tmp[:, 1] < 0.0):
+                    # breakpoint()
                 logp = gb_info.priors["gb"].logpdf(tmp).get()
                 fix = np.isinf(logp)
                 jj += 1
@@ -400,6 +403,7 @@ class Guide(ABC):
             ##########
             ### NEED TO START BY COMPARING THE LIKELIHOODS AT THE SAME VALUES OF THE BASE TEMPLATE AND THE THIRD TEMPLATE
             ###########
+            # breakpoint()
             start_like = gb_info.template_gen.get_ll(tmp_fs_in, data_channels_tmp, psd_tmp, start_freq_ind=start_freq_ind, N=N, **self.waveform_kwargs)
             
             if np.any(np.isnan(start_like)):
@@ -410,13 +414,13 @@ class Guide(ABC):
             
             factor *= 1.5
             # print(np.std(start_like[0]))
-
+        # breakpoint()
         return tmp_fs
 
 
 class TriplesSetupGuide(Guide):
 
-    def __init__(self, *args, N=16384, batch_size=1000, **kwargs):
+    def __init__(self, *args, N=2048, batch_size=1000, **kwargs):
         name = "triples_setup"
         self.batch_size = batch_size
         self.N = N
@@ -448,7 +452,8 @@ class TriplesSetupGuide(Guide):
         phi2 = data_input['Phi3']
         i2 = data_input['iota3']
         e2 = data_input['e3']
-        P2 = (2 * np.pi * np.sqrt(a2 ** 3 / (G * (m1 + m2 + m3) * MSUN))) / YEAR
+        M_tot_kg = (m1 + m2) * MSUN + m3 * Mjup
+        P2 = (2 * np.pi * np.sqrt(a2 ** 3 / (G * M_tot_kg))) / YEAR
 
         Omega2 = np.random.rand(len(f0)) * 2 * np.pi
         omega2 = np.random.rand(len(f0)) * 2 * np.pi
@@ -460,7 +465,7 @@ class TriplesSetupGuide(Guide):
             e2.copy(),
             i2.copy(),
             Omega2,
-            omega2,
+            omega2, 
             phi2,
             lam,
             beta,
@@ -537,16 +542,16 @@ class TriplesSetupGuide(Guide):
         data_input = self.get_input_data(directory + fp)
         
         params_input = self.build_sampling_parameter_set(data_input)
-
+        # breakpoint()
         num_sources = params_input.shape[0]
         inds_tmp = np.arange(0, num_sources, self.batch_size)
 
         if inds_tmp[-1] != num_sources - 1:
-            inds_tmp = np.concatenate([inds_tmp, np.array([num_sources - 1])])
+            inds_tmp = np.concatenate([inds_tmp, np.array([num_sources])])
 
         ll_info, snr_info, phase_change_info = np.zeros(num_sources), np.zeros(num_sources), np.zeros(num_sources)
         for iteration, (start, end) in enumerate(zip(inds_tmp[:-1], inds_tmp[1:])):
-            ll_tmp, snr_tmp, phase_change_tmp = self.get_likelihood_information(params_input[start:end])
+            ll_tmp, snr_tmp, phase_change_tmp = self.get_likelihood_information(params_input[start:end]) # used to be start:end, but it was missing a source.
 
             ll_info[start:end] = ll_tmp
             snr_info[start:end] = snr_tmp
@@ -568,7 +573,8 @@ class TriplesSetupGuide(Guide):
     def readout(self, indicator: str, original_id: np.ndarray, params: np.ndarray, ll_info: np.ndarray, opt_snr: np.ndarray, phase_change: np.ndarray):
 
         out_fp = self.get_out_fp(indicator)
-
+        # print(np.max(ll_info))
+        # breakpoint()
         inds = np.where(ll_info < self.settings["cut_info"]["first_cut_ll_diff_lim"])[0]
         ll_good = ll_info[inds]
         snr_good = opt_snr[inds]
@@ -669,7 +675,7 @@ class SearchRuns(Guide):
             stopping_iterations=-1,
             name="gb",
             prior_transform_fn=self.prior_transform_fn,
-            provide_supplimental=True,
+            provide_supplemental=True,
         )
 
         coords = self.xp.zeros((self.ngroups, self.ntemps, self.nwalkers, self.ndim))
@@ -677,12 +683,12 @@ class SearchRuns(Guide):
         branch_supp_base_shape = (self.ngroups, self.ntemps, self.nwalkers)
 
         data_inds = self.xp.repeat(self.xp.arange(self.ngroups, dtype=np.int32)[:, None], self.ntemps * self.nwalkers, axis=-1).reshape(self.ngroups, self.ntemps, self.nwalkers) 
-        branch_supps = {"gb": BranchSupplimental(
+        branch_supps = {"gb": BranchSupplemental(
             {"data_inds": data_inds}, base_shape=branch_supp_base_shape, copy=True
         )}
 
         groups_running = self.xp.zeros(self.ngroups, dtype=bool)
-        self.start_state = ParaState({"gb": coords}, groups_running=groups_running, branch_supplimental=branch_supps)
+        self.start_state = ParaState({"gb": coords}, groups_running=groups_running, branch_supplemental=branch_supps)
         self.start_state.log_prior = self.xp.zeros((self.ngroups, self.ntemps, self.nwalkers))
         self.start_state.log_like = self.xp.zeros((self.ngroups, self.ntemps, self.nwalkers))
         self.start_state.betas = self.xp.ones((self.ngroups, self.ntemps))
@@ -773,7 +779,7 @@ class SearchRuns(Guide):
 
             # get injection inner product 
             d_d = 4.0 * self.df * self.xp.sum(self.xp.asarray(data_channels_tmp).conj() * self.xp.asarray(data_channels_tmp) / self.xp.asarray(psd_tmp)).item().real
-
+            # breakpoint()
             self.base_info.template_gen.d_d = d_d
             
             start_points = self.get_start_points(self.base_info, injection_params, f_lims, fdot_lims, data_channels_tmp, psd_tmp, start_freq_ind, N_val)
@@ -984,13 +990,13 @@ class EvidenceRuns(Guide):
             branch_supp_base_shape = (self.ngroups, self.ntemps, self.nwalkers)
 
             data_inds = self.xp.repeat(self.xp.arange(self.ngroups, dtype=np.int32)[:, None], self.ntemps * self.nwalkers, axis=-1).reshape(self.ngroups, self.ntemps, self.nwalkers) 
-            branch_supps = {"gb": BranchSupplimental(
+            branch_supps = {"gb": BranchSupplemental(
                 {"data_inds": data_inds}, base_shape=branch_supp_base_shape, copy=True
             )}
 
             groups_running = self.xp.zeros(self.ngroups, dtype=bool)
         
-            start_state = ParaState({"gb": coords}, groups_running=groups_running, branch_supplimental=branch_supps)
+            start_state = ParaState({"gb": coords}, groups_running=groups_running, branch_supplemental=branch_supps)
             start_state.log_prior = self.xp.zeros((self.ngroups, self.ntemps, self.nwalkers))
             start_state.log_like = self.xp.zeros((self.ngroups, self.ntemps, self.nwalkers))
             start_state.betas = self.xp.ones((self.ngroups, self.ntemps))
@@ -1015,7 +1021,7 @@ class EvidenceRuns(Guide):
                 stopping_iterations=-1,
                 name="gb",
                 prior_transform_fn=self.prior_transform_fn[info.name],
-                provide_supplimental=True,
+                provide_supplemental=True,
             )
 
         self.map_models = {"base": 0, "third": 1}
@@ -1029,7 +1035,8 @@ class EvidenceRuns(Guide):
 
         data_input = self.get_input_data(directory + fp)
         data_search = self.get_sampling_data(indicator)
-
+        #VEE Data_input = data_input[data_input["id"] > 22451709]
+        #VEE data_search  = data_search[data_search["orig_id"] > 22451709]
         self.run_mcmc(indicator, data_search, data_input)
 
         self.add_to_status_file(indicator)
@@ -1058,9 +1065,9 @@ class EvidenceRuns(Guide):
         for i in range(nbin):
             index = int(data_search["index"][i])
             orig_id = int(data_search["orig_id"][i])
-
+            
             already_run = self.check_if_source_has_been_run(indicator, str(orig_id) + "_third")
-
+                
             if already_run:
                 if self.verbose:
                     print(f"{int(orig_id)} already in file {self.get_out_fp(indicator)} so not running.")
@@ -1084,7 +1091,7 @@ class EvidenceRuns(Guide):
             ll_diff_after_search = last_state.log_like.max()
 
             inside_limits = self.check_if_parameters_are_within_lims(indicator, orig_id, m3, e2, ll_diff_after_search, opt_snr, ll_cut=self.settings["cut_info"]["second_cut_ll_diff_lim"])
-            
+
             if not inside_limits:
                 continue
 
@@ -1128,7 +1135,9 @@ class EvidenceRuns(Guide):
 
     def setup_next_source(self, info_iterator: Callable, indicator: str, data_search: np.ndarray, data_orig: np.ndarray):
         try:
-            (orig_id, index, injection_params, fd, data_channels_tmp, psd_tmp, start_freq_ind, f_lims, fdot_lims, P2_lims, N_val, last_state, keep_info) = next(info_iterator)
+            (orig_id, index, injection_params, fd, data_channels_tmp, psd_tmp, start_freq_ind, f_lims, fdot_lims, 
+            P2_lims, N_val, last_state, keep_info) = next(info_iterator)
+            
             
             data_channels_tmp = [self.xp.asarray(tmp) for tmp in data_channels_tmp]
             psd_tmp = [self.xp.asarray(tmp) for tmp in psd_tmp]
@@ -1229,7 +1238,7 @@ class EvidenceRuns(Guide):
 
     #     return
 
-    def readout(self, end_i: int, indicator: str, current_evidence_estimate: dict):
+    def readout(self, end_i: int, indicator: str, current_evidence_estimate: dict, timed_out, counter_few):
 
         base_evidence = current_evidence_estimate["base"][end_i].item()
         third_evidence = current_evidence_estimate["third"][end_i].item()
@@ -1256,6 +1265,9 @@ class EvidenceRuns(Guide):
                 group_new.attrs["base_evidence"] = base_evidence
                 group_new.attrs["third_evidence"] = third_evidence
                 group_new.attrs["2logBF"] = two_logBF
+
+                group_new.attrs["converged"] = bool(not timed_out[end_i])
+                group_new.attrs["counter_few"] = int(counter_few[end_i])
     
     def product_space_operation(self, logP_dict):
 
@@ -1277,7 +1289,6 @@ class EvidenceRuns(Guide):
     def run_mcmc(self, indicator: str, data_search: np.ndarray, data_input: np.ndarray):
         test_burn = True
         info_iterator = self.information_generator(indicator, data_search, data_input)
-
         run = True
         finish_up = False
 
@@ -1294,19 +1305,23 @@ class EvidenceRuns(Guide):
         current_evidence_diff = self.xp.full((self.ngroups,), np.nan)
         nsteps = self.sampler_settings["evidence"]["nsteps"]
                 
-        evidence_log_like = {name: self.xp.full((self.ngroups, total_steps_for_evidence, self.ntemps, self.nwalkers * nsteps), self.xp.nan) for name in ["base", "third"]}
+        evidence_log_like = {name: self.xp.full((self.ngroups, total_steps_for_evidence, self.ntemps, self.nwalkers * nsteps), self.xp.nan) for name in ["base", "third"]}        
 
+        counter_few = np.zeros(self.ngroups, dtype=int)
+        timed_out = np.zeros(self.ngroups, dtype=bool)
+        max_few_iterations = self.sampler_settings["evidence"].get("max_few_iterations", 150)
+        
         while run:
             finish_up = self.setup_next_source(info_iterator, indicator, data_search, data_input)
-
             # end if all are done
             if finish_up and np.all(~self.start_state["third"].groups_running):
                 run = False
                 return
+            
+            # end if only one remaining
 
             started_run = False
             running_inner = (self.xp.all(self.start_state["third"].groups_running) or finish_up)
-
             while running_inner:
                 # breakpoint()
                 started_run = True
@@ -1323,7 +1338,7 @@ class EvidenceRuns(Guide):
                     self.sampler[template].backend.reset(*self.sampler[template].backend.reset_args, **self.sampler[template].backend.reset_kwargs)
                     # if template == "third":
                     #     breakpoint()
-                    #     coords_in = {"gb": self.start_state[templat5980353e].branches["gb"].coords[-1:]}
+                    #     coords_in = {"gb": self.start_state[template].branches["gb"].coords[-1:]}
                     #     check = self.sampler[template].compute_log_prior(coords_in, groups_running=self.xp.arange(self.ngroups)[np.array([15])])
                     #     coords_in2 = {"gb": self.start_state[template].branches["gb"].coords}
                     #     check = self.sampler[template].compute_log_prior(coords_in, groups_running=self.xp.arange(self.ngroups)[:])
@@ -1331,18 +1346,22 @@ class EvidenceRuns(Guide):
 
                     print(template, self.start_state[template].groups_running.sum())
                     
-                    burn = 0
-                    if test_burn:
-                        burn = 0
-                        if template == "base":
-                            test_burn = False
-                        
+                    print(self.currently_running_orig_id)
+                    # burn = 0
+                    # if test_burn:
+                    #     burn = 0
+                    #     if template == "base":
+                    #         test_burn = False
+                    burn = 1000 if test_burn else 0
+                    if template == "base":
+                        test_burn = False
+
                     self.start_state[template] = self.sampler[template].run_mcmc(self.start_state[template], nsteps, burn=burn, thin_by=thin_by, progress=True, store=True)
                     # np.save(f"sample_check_{template}", self.sampler[template].get_chain())
                     
                     logP[template] = self.start_state[template].log_like * self.start_state[template].betas[:, :, None] + self.start_state[template].log_prior
-                    
-                    evidence_log_like[template][:, current_inds_fill_evidence] = self.sampler[template].get_log_like(discard=self.sampler[template].backend.iteration - nsteps).transpose(1, 2, 3, 0).reshape(self.ngroups, self.ntemps, self.nwalkers * nsteps)  # self.start_state[template].log_like.mean(axis=-1)[:, None, :]
+
+                    evidence_log_like[template][:, current_evidence_ind] = self.xp.asarray(self.sampler[template].get_log_like(discard=self.sampler[template].backend.iteration - nsteps).transpose(1, 2, 3, 0).reshape(self.ngroups, self.ntemps, self.nwalkers * nsteps))  # self.start_state[template].log_like.mean(axis=-1)[:, None, :]
                     # evidence_log_like[template] = 
                 # np.save(file='log_like_third_backend_sampler_new.npy', arr=self.sampler['third'].backend.get_log_like())
                 # np.save(file='log_like_base_backend_sampler_new.npy', arr=self.sampler['base'].backend.get_log_like())
@@ -1354,7 +1373,7 @@ class EvidenceRuns(Guide):
                 # exit()
                 # self.product_space_operation(logP)
                 
-                current_evidence_ind += nsteps
+                current_evidence_ind += 1
                 current_evidence_ind %= total_steps_for_evidence
 
                 # adjust
@@ -1376,11 +1395,68 @@ class EvidenceRuns(Guide):
                     old_bf[adjust.get(), current_old_bf_ind[adjust.get()]] = 2 * current_evidence_diff[adjust.get()].get()
                     current_old_bf_ind[adjust.get()] = (current_old_bf_ind[adjust.get()] + 1) % old_bf.shape[1]
                     current_old_bf_count[adjust.get()] += 1
-                    
-                check_convergence = (current_old_bf_count >= number_old_evidences) & (np.asarray(self.currently_running_orig_id) != None)
+
+                # if self.start_state["base"].groups_running.sum() < 3 and self.start_state["third"].groups_running.sum() < 3:
+                #     counter_few += 1 
+                #     check_convergence = (current_old_bf_count >= number_old_evidences) & (np.asarray(self.currently_running_orig_id) != None)
+                #     end = np.full(self.ngroups, False)
+                #     end[check_convergence] = np.all(np.abs(old_bf[check_convergence] - np.mean(old_bf[check_convergence], axis=-1)[:, None]) < 0.03, axis=-1) & (np.abs(np.sign(np.diff(old_bf[check_convergence], axis=-1)).sum(axis=-1)) < number_old_evidences - 1)
+                #     print(end, current_evidence_diff)
+                #     print(self.currently_running_orig_id)
+                #     if counter_few > 150:
+                #         print("counter_few", counter_few)
+                #         groups_ind = np.where(self.start_state["base"].groups_running)[0]
+                #         # groups_val = [orig for orig in self.currently_running_orig_id if orig is not None]
+                #         for ind in groups_ind:
+                #             current_evidence_estimate["base"][int(ind)] = np.nan
+                #             current_evidence_estimate["third"][int(ind)] = np.nan
+                #             print(ind)
+                #             end[int(ind)] = True
+                #     else:
+                #         print("counter_few", counter_few)
+                # else:
+                #     counter_rest +=1
+                #     check_convergence = (current_old_bf_count >= number_old_evidences) & (np.asarray(self.currently_running_orig_id) != None)
+                #     end = np.full(self.ngroups, False)
+                #     end[check_convergence] = np.all(np.abs(old_bf[check_convergence] - np.mean(old_bf[check_convergence], axis=-1)[:, None]) < 0.03, axis=-1) & (np.abs(np.sign(np.diff(old_bf[check_convergence], axis=-1)).sum(axis=-1)) < number_old_evidences - 1)
+                #     print(end, current_evidence_diff)
+                #     print("counter_rest", counter_rest)
+                running = self.start_state["third"].groups_running.get()
+                few_left = (
+                    self.start_state["base"].groups_running.sum() < 3
+                    and self.start_state["third"].groups_running.sum() < 3
+                )
+                if few_left:
+                    counter_few[running] += 1
+
+                check_convergence = (
+                    (current_old_bf_count >= number_old_evidences)
+                    & (np.asarray(self.currently_running_orig_id) != None)
+                )
                 end = np.full(self.ngroups, False)
-                end[check_convergence] = np.all(np.abs(old_bf[check_convergence] - np.mean(old_bf[check_convergence], axis=-1)[:, None]) < 0.03, axis=-1) & (np.abs(np.sign(np.diff(old_bf[check_convergence], axis=-1)).sum(axis=-1)) < number_old_evidences - 1)
+                end[check_convergence] = (
+                    np.all(
+                        np.abs(
+                            old_bf[check_convergence]
+                            - np.mean(old_bf[check_convergence], axis=-1)[:, None]
+                        ) < 0.03,
+                        axis=-1,
+                    )
+                    & (
+                        np.abs(np.sign(np.diff(old_bf[check_convergence], axis=-1)).sum(axis=-1))
+                        < number_old_evidences - 1
+                    )
+                )
+
+                timed_out = (
+                    (counter_few > max_few_iterations)
+                    & running
+                    & (np.asarray(self.currently_running_orig_id) != None)
+                )
+                end = end | timed_out
+
                 print(end, current_evidence_diff)
+                print(self.currently_running_orig_id)
                 if np.any(end) > 0:
                     running_inner = False
                 # print(iters_at_max, start_state.groups_running.sum().item(), now_max_log_like[:10])
@@ -1390,12 +1466,14 @@ class EvidenceRuns(Guide):
                 end = np.where(end)[0]
                 for end_i in end:
                     
-                    self.readout(end_i, indicator, current_evidence_estimate)
+                    self.readout(end_i, indicator, current_evidence_estimate, timed_out, counter_few)
 
                     # reset everything for the one that has finished
                     old_bf[end_i] = np.nan
                     current_old_bf_ind[end_i] = 0
                     current_old_bf_count[end_i] = 0
+
+                    counter_few[end_i] = 0  # added here
 
                     for template in ["base", "third"]:
                         current_evidence_estimate[template][end_i] = np.nan
@@ -1406,6 +1484,7 @@ class EvidenceRuns(Guide):
         
                     self.currently_running_orig_id[end_i] = None
                     self.xp.get_default_memory_pool().free_all_blocks()
+                    # test_burn = True   # added here 
 
             if self.xp.all(~self.start_state["third"].groups_running) and finish_up:
                 run = False
@@ -1427,7 +1506,7 @@ class PosteriorRuns(Guide):
             setattr(self, key, val)
             
         self.ndim = self.third_info.ndim
-
+        # self.ndim = self.base_info.ndim # For Mismatched PE
         self.initialize_sampler_routine()
 
     def initialize_sampler_routine(self):
@@ -1443,21 +1522,25 @@ class PosteriorRuns(Guide):
         d_d_all = self.xp.zeros(self.ngroups, dtype=float)
         self.N_max = int(self.data_length / 4)
         self.log_like_fn = LogLikeFn(self.third_info.template_gen, data_channels, psds, start_freq, self.df, self.third_info.transform_fn, N_vals_in, self.data_length, d_d_all, **self.waveform_kwargs)
+        # self.log_like_fn = LogLikeFn(self.base_info.template_gen, data_channels, psds, start_freq, self.df, self.base_info.transform_fn, N_vals_in, self.data_length, d_d_all, **self.waveform_kwargs) # For Mismatched PE
         
         self.currently_running_orig_id = [None for _ in range(self.ngroups)]
         
         # initialize sampler
         self.sampler = ParaEnsembleSampler(
             self.third_info.ndim,
+            # self.base_info.ndim,
             self.nwalkers,
             self.ngroups,
             self.log_like_fn,
             self.third_info.priors,
+            # self.base_info.priors,
             tempering_kwargs=self.tempering_kwargs,
             args=[],
             kwargs={},
             gpu=self.gpu,
             periodic=self.third_info.periodic,
+            # periodic=self.base_info.periodic,
             backend=None,
             update_fn=None,
             update_iterations=-1,
@@ -1465,7 +1548,7 @@ class PosteriorRuns(Guide):
             stopping_iterations=-1,
             name="gb",
             prior_transform_fn=self.prior_transform_fn,
-            provide_supplimental=True,
+            provide_supplemental=True,
         )
 
         coords = self.xp.zeros((self.ngroups, self.ntemps, self.nwalkers, self.ndim))
@@ -1473,12 +1556,12 @@ class PosteriorRuns(Guide):
         branch_supp_base_shape = (self.ngroups, self.ntemps, self.nwalkers)
 
         data_inds = self.xp.repeat(self.xp.arange(self.ngroups, dtype=np.int32)[:, None], self.ntemps * self.nwalkers, axis=-1).reshape(self.ngroups, self.ntemps, self.nwalkers) 
-        branch_supps = {"gb": BranchSupplimental(
+        branch_supps = {"gb": BranchSupplemental(
             {"data_inds": data_inds}, base_shape=branch_supp_base_shape, copy=True
         )}
 
         groups_running = self.xp.zeros(self.ngroups, dtype=bool)
-        self.start_state = ParaState({"gb": coords}, groups_running=groups_running, branch_supplimental=branch_supps)
+        self.start_state = ParaState({"gb": coords}, groups_running=groups_running, branch_supplemental=branch_supps)
         self.start_state.log_prior = self.xp.zeros((self.ngroups, self.ntemps, self.nwalkers))
         self.start_state.log_like = self.xp.zeros((self.ngroups, self.ntemps, self.nwalkers))
         self.start_state.betas = self.xp.ones((self.ngroups, self.ntemps))
@@ -1487,6 +1570,7 @@ class PosteriorRuns(Guide):
     def get_last_evidence_state(self, indicator: str, orig_id: int) -> State:
 
         reader_evidence = HDFBackend(self.get_evidence_file(indicator), name=str(int(orig_id)) + "_third")
+        # reader_evidence = HDFBackend(self.get_evidence_file(indicator), name=str(int(orig_id)) + "_base") # For Mismatched PE
         
         try:
             last_state = reader_evidence.get_last_sample()
@@ -1517,7 +1601,7 @@ class PosteriorRuns(Guide):
             orig_id = int(data_search["orig_id"][i])
 
             already_run = self.check_if_source_has_been_run(indicator, str(orig_id) + "_third_posterior")
-
+            # already_run = self.check_if_source_has_been_run(indicator, str(orig_id) + "_base_posterior") # For Mismatched PE
             if already_run:
                 if self.verbose:
                     print(f"{int(orig_id)} already in file {self.get_out_fp(indicator)} so not running.")
@@ -1574,7 +1658,7 @@ class PosteriorRuns(Guide):
             d_d = 4.0 * self.df * self.xp.sum(self.xp.asarray(data_channels_tmp).conj() * self.xp.asarray(data_channels_tmp) / self.xp.asarray(psd_tmp)).item().real
 
             self.third_info.template_gen.d_d = d_d
-            
+            # self.base_info.template_gen.d_d = d_d # For Mismatched PE
             start_points = last_state.branches["gb"].coords.copy()
             # setup in ParaState
 
@@ -1623,10 +1707,12 @@ class PosteriorRuns(Guide):
         output_state = State({"gb": self.start_state.branches["gb"].coords[end_i].get()}, log_like=self.start_state.log_like[end_i].get(), log_prior=self.start_state.log_prior[end_i].get(), betas=self.start_state.betas[end_i].get(), random_state=np.random.get_state())
 
         group_name = str(int(orig_id)) + "_" + self.third_info.name + "_posterior"
+        # group_name = str(int(orig_id)) + "_" + self.base_info.name + "_posterior" # For Mismatched PE
         backend_tmp = HDFBackend(self.get_out_fp(indicator), name=group_name)
         backend_tmp.reset(
             self.nwalkers,
             self.third_info.ndim,
+            # self.base_info.ndim,
             ntemps=self.ntemps,
             branch_names=["gb"],
         )
@@ -1672,6 +1758,7 @@ class PosteriorRuns(Guide):
             self.start_state = self.sampler.run_mcmc(self.start_state, nsteps, burn=burn, thin_by=thin_by, progress=progress, store=True)
 
             template = self.third_info
+            # template = self.base_info
 
             for end_i in range(self.ngroups):
                 orig_id = self.currently_running_orig_id[end_i]
